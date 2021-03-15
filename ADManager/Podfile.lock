@@ -1,0 +1,16 @@
+PODS:
+  - ADManager (0.0.1)
+
+DEPENDENCIES:
+  - ADManager (from `../`)
+
+EXTERNAL SOURCES:
+  ADManager:
+    :path: "../"
+
+SPEC CHECKSUMS:
+  ADManager: f253b74cdd7aa4d93fb17c4fe92b833a70130074
+
+PODFILE CHECKSUM: 0ab24deaeae7db9d1fef0f7329e9597a5ba87709
+
+COCOAPODS: 1.9.1
