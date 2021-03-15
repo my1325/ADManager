@@ -7,8 +7,6 @@
 
 import Foundation
 
-public protocol ADType {}
-
 public typealias TaskFactoryCategory = String
 public typealias ADCategory = String
 
@@ -19,7 +17,7 @@ public enum LoadMethod {
     case immediately
 }
 
-public protocol ADCompatble: ADType {
+public protocol ADCompatble {
     var taskFactoryCategory: TaskFactoryCategory { get }
     
     var method: LoadMethod { get }

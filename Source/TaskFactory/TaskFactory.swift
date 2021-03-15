@@ -48,8 +48,6 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
     
     /// 最大的并发数量，默认为1
     public let maxConcurrentTaskCount: Int
-    /// task执行的线程队列
-    public let dispatchQueue: DispatchQueue
     
     public private(set) var taskingQueue: [TaskCompatible] = []
     
@@ -63,21 +61,18 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
     public let _lock = DispatchSemaphore(value: 1)
 
     public init(queue: TaskQueue,
-                maxConcurrentTaskCount: Int = 1,
-                dispatchQueue: DispatchQueue = DispatchQueue(label: "com.pangle.ad.manager.dispatch.queue", attributes: .concurrent))
+                maxConcurrentTaskCount: Int = 1)
     {
         self.queue = queue
         self.maxConcurrentTaskCount = maxConcurrentTaskCount
-        self.dispatchQueue = dispatchQueue
     
         queue.delegate = self
     }
     
     public convenience init(maxTaskCapacity: Int = 10,
-                            maxConcurrentTaskCount: Int = 1,
-                            dispatchQueue: DispatchQueue = DispatchQueue(label: "com.pangle.ad.manager.dispatch.queue", attributes: .concurrent))
+                            maxConcurrentTaskCount: Int = 1)
     {
-        self.init(queue: TaskQueue(maxCapacity: maxTaskCapacity), maxConcurrentTaskCount: maxConcurrentTaskCount, dispatchQueue: dispatchQueue)
+        self.init(queue: TaskQueue(maxCapacity: maxTaskCapacity), maxConcurrentTaskCount: maxConcurrentTaskCount)
     }
     
     public func requestAd(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible {

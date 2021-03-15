@@ -7,9 +7,7 @@
 
 import Foundation
 
-public protocol FactoryType {}
-
-public protocol TaskFactoryCompatible: FactoryType {
+public protocol TaskFactoryCompatible {
     func requestAd(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible
 }
 
