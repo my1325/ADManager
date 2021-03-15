@@ -95,7 +95,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
             
         } else if taskingSize < maxConcurrentTaskCount {
             
-            let task = prepareTaskWithArguments(ad)
+            let task = prepareFor(ad)
             var _immediatelyResult = immediatelyQueue[ad.category] ?? []
             _immediatelyResult.append(ADResult(task: task, complete: complete, adDidLoad: adDidLoad))
             immediatelyQueue[ad.category] = _immediatelyResult
@@ -103,7 +103,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
             return task
         } else {
             
-            let task = prepareTaskWithArguments(ad)
+            let task = prepareFor(ad)
             queue.addTask(task)
             return task
         }
@@ -112,7 +112,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
     private func preloadAd(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible {
         
         if taskingSize < maxConcurrentTaskCount {
-            let task = prepareTaskWithArguments(ad)
+            let task = prepareFor(ad)
             var _preloadResult = preloadedQueue[ad.category] ?? []
             _preloadResult.append(ADResult(task: task, complete: complete, adDidLoad: adDidLoad))
             preloadedQueue[ad.category] = _preloadResult
@@ -120,7 +120,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
             return task
             
         } else {
-            let task = prepareTaskWithArguments(ad)
+            let task = prepareFor(ad)
             queue.addTask(task)
             return task
         }
@@ -133,7 +133,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
         }
     }
     
-    open func prepareTaskWithArguments(_ ad: ADCompatble) -> TaskCompatible {
+    open func prepareFor(_ ad: ADCompatble) -> TaskCompatible {
         abstractMethod()
     }
     

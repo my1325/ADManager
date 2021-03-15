@@ -26,6 +26,8 @@ public final class NoneTask: TaskCompatible {
     public func retry() -> Bool {
         return false 
     }
+    
+    public init() {}
 }
 
 struct NoneTaskFactory: TaskFactoryCompatible {
