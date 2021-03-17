@@ -7,23 +7,53 @@
 
 import Foundation
 
+@inline(__always)
+public func synchronizedOn<T>(_ target: Any, _ code: () throws -> T) rethrows -> T {
+    objc_sync_enter(target); defer { objc_sync_exit(target) }
+    return try code()
+}
+
+public protocol LockCompatible {
+    func lock()
+    
+    func unlock()
+}
+
+extension LockCompatible {
+    public func synchronize<T>(_ code: @escaping () throws -> T) rethrows -> T {
+        lock(); defer { unlock() }
+        return try code()
+    }
+}
+
+extension NSLock: LockCompatible {}
+
+extension DispatchSemaphore: LockCompatible {
+    public func lock() {
+        wait()
+    }
+    
+    public func unlock() {
+        signal()
+    }
+}
+
 public final class ADManager {
     
-    public let `shared` = ADManager()
+    public static let shared = ADManager()
     
     private var factoryList: [TaskFactoryCategory: TaskFactoryCompatible] = [NoneAd.noneTaskFactory: NoneTaskFactory()]
     
     public func request(_ ad: ADCompatble, adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible {
-        return taskFactoryForCategory(ad.taskFactoryCategory).requestAd(ad, adDidLoad, complete: complete)
+        if let _factory = taskFactoryForCategory(ad.taskFactoryCategory) {
+            return _factory.requestAd(ad, adDidLoad, complete: complete)
+        } else {
+            fatalError("none register task factory for category \(ad.taskFactoryCategory)")
+        }
     }
     
-    private func taskFactoryForCategory(_ category: TaskFactoryCategory) -> TaskFactoryCompatible {
-        return synchronizedOn(self, {
-            guard let _factory = self.factoryList[category] else {
-                fatalError("none register task factory for category \(category)")
-            }
-            return _factory
-        })
+    public func taskFactoryForCategory(_ category: TaskFactoryCategory) -> TaskFactoryCompatible? {
+        return factoryList[category]
     }
     
     public func register(_ category: TaskFactoryCategory, factory: TaskFactoryCompatible) {

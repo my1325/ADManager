@@ -17,6 +17,18 @@ func abstractMethodEmptyImplement(_ method: String = #function, _ line: Int = #l
     #endif
 }
 
+public final class ADRequest {
+    let task: TaskCompatible
+    let complete: ((Result<Any?, Error>) -> Void)?
+    let adDidLoad: ((Any?) -> Void)?
+    
+    init(task: TaskCompatible, adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) {
+        self.task = task
+        self.adDidLoad = adDidLoad
+        self.complete = complete
+    }
+}
+
 public final class ADResult {
     public let complete: ((Result<Any?, Error>) -> Void)?
     public let adDidLoad: ((Any?) -> Void)?
@@ -34,20 +46,22 @@ public final class ADResult {
     }
     
     public func immediatelyResult() {
+        guard !task.isCanceled else { return }
         adDidLoad?(result)
     }
     
     public func completeWithResult(_ completeData: Result<Any?, Error>) {
+        guard !task.isCanceled else { return }
         complete?(completeData)
     }
 }
 
-open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueueDelegate {
-    
-    public let queue: TaskQueue
+open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate {
     
     /// 最大的并发数量，默认为1
     public let maxConcurrentTaskCount: Int
+    
+    public private(set) var cacheQueue: [ADRequest] = []
     
     public private(set) var taskingQueue: [TaskCompatible] = []
     
@@ -60,19 +74,8 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
     
     public let _lock = DispatchSemaphore(value: 1)
 
-    public init(queue: TaskQueue,
-                maxConcurrentTaskCount: Int = 1)
-    {
-        self.queue = queue
+    public init(maxConcurrentTaskCount: Int = 1) {
         self.maxConcurrentTaskCount = maxConcurrentTaskCount
-    
-        queue.delegate = self
-    }
-    
-    public convenience init(maxTaskCapacity: Int = 10,
-                            maxConcurrentTaskCount: Int = 1)
-    {
-        self.init(queue: TaskQueue(maxCapacity: maxTaskCapacity), maxConcurrentTaskCount: maxConcurrentTaskCount)
     }
     
     public func requestAd(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible {
@@ -85,14 +88,12 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
     }
     
     private func immediatelyAD(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible {
-        var _loadedResult = preloadedQueue[ad.category] ?? []
-        
+        let _loadedResult = preloadedQueue[ad.category] ?? []
         if _loadedResult.count > 0 {
-            let adResult = _loadedResult.removeFirst()
-            adResult.immediatelyResult()
-            preloadedQueue[ad.category] = _loadedResult
-            return adResult.task
             
+            let adResult = _loadedResult[0]
+            adResult.immediatelyResult()
+            return adResult.task
         } else if taskingSize < maxConcurrentTaskCount {
             
             let task = prepareFor(ad)
@@ -104,7 +105,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
         } else {
             
             let task = prepareFor(ad)
-            queue.addTask(task)
+            cacheQueue.append(ADRequest(task: task, adDidLoad: adDidLoad, complete: complete))
             return task
         }
     }
@@ -121,7 +122,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
             
         } else {
             let task = prepareFor(ad)
-            queue.addTask(task)
+            cacheQueue.append(ADRequest(task: task, adDidLoad: adDidLoad, complete: complete))
             return task
         }
     }
@@ -132,7 +133,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
             task.resume(self)
         }
     }
-    
+
     open func prepareFor(_ ad: ADCompatble) -> TaskCompatible {
         abstractMethod()
     }
@@ -144,49 +145,44 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
         return _retValue
     }
     
-    private func dequeuPoolTask() -> TaskCompatible {
-        return _lock.synchronize { self.queue.dequeueTask() }
+    private func dequeuPoolTask() -> ADRequest? {
+        return _lock.synchronize {
+            if self.cacheQueue.count > 0 {
+                return self.cacheQueue.removeFirst()
+            } else {
+                return nil
+            }
+        }
     }
 
-    open func taskQueue(_ queue: TaskQueue, didEnterTask task: TaskCompatible) {
-        abstractMethodEmptyImplement()
-    }
-
-    open func taskQueue(_ queue: TaskQueue, didFailEnterTask task: TaskCompatible) {
-        taskAddPoolFailed(task)
-    }
-    
-    open func taskAddPoolFailed(_ task: TaskCompatible) {
-        abstractMethodEmptyImplement()
-    }
-    
     open func task(_ task: TaskCompatible, adDidLoad data: Any?) {
         switch task.ad.method {
         case .preload:
-            var _preloadResult = preloadedQueue[task.ad.category]
-            if _preloadResult?.count > 0 {
-                let result = _preloadResult?.removeFirst()
+            let _preloadResult = preloadedQueue[task.ad.category]
+            if let _result = _preloadResult, _result.count > 0 {
+                let result = _preloadResult?[0]
                 result?.uploadResult(data)
-                preloadedQueue[task.ad.category] = _preloadResult
             }
         case .immediately:
-            var _immediatelyResult = immediatelyQueue[task.ad.category]
-            if _immediatelyResult?.count > 0 {
-                let result = _immediatelyResult?.removeFirst()
+            let _immediatelyResult = immediatelyQueue[task.ad.category]
+            if let _result = _immediatelyResult, _result.count > 0 {
+                let result = _immediatelyResult?[0]
                 result?.uploadResult(data)
                 result?.immediatelyResult()
-                immediatelyQueue[task.ad.category] = _immediatelyResult
             }
         }
     }
     
     open func task(_ task: TaskCompatible, didCompleteWithData data: Any?) {
-        immediatelyResumeTask(dequeuPoolTask())
+        taskingQueue.removeAll(where: { $0.identifier == task.identifier })
+        if let _request = dequeuPoolTask() {
+            _ = requestAd(_request.task.ad, _request.adDidLoad, complete: _request.complete)
+        }
         switch task.ad.method {
         case .preload:
             
             var _preloadResult = preloadedQueue[task.ad.category]
-            if _preloadResult?.count > 0 {
+            if let _result = _preloadResult, _result.count > 0 {
                 let result = _preloadResult?.removeFirst()
                 result?.completeWithResult(.success(data))
                 preloadedQueue[task.ad.category] = _preloadResult
@@ -194,7 +190,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
         case .immediately:
             
             var _immediatelyResult = immediatelyQueue[task.ad.category]
-            if _immediatelyResult?.count > 0 {
+            if let _result = _immediatelyResult, _result.count > 0 {
                 let result = _immediatelyResult?.removeFirst()
                 result?.completeWithResult(.success(data))
                 immediatelyQueue[task.ad.category] = _immediatelyResult
@@ -212,7 +208,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
             case .preload:
                 
                 var _preloadResult = preloadedQueue[task.ad.category]
-                if _preloadResult?.count > 0 {
+                if let _result = _preloadResult, _result.count > 0 {
                     let result = _preloadResult?.removeFirst()
                     result?.completeWithResult(.failure(error))
                     preloadedQueue[task.ad.category] = _preloadResult
@@ -220,7 +216,7 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
             case .immediately:
                 
                 var _immediatelyResult = immediatelyQueue[task.ad.category]
-                if _immediatelyResult?.count > 0 {
+                if let _result = _immediatelyResult, _result.count > 0 {
                     let result = _immediatelyResult?.removeFirst()
                     result?.completeWithResult(.failure(error))
                     immediatelyQueue[task.ad.category] = _immediatelyResult
@@ -228,7 +224,9 @@ open class TaskFactory: TaskFactoryCompatible, TaskReumeResultDelegate, TaskQueu
             }
             
             taskingQueue.removeAll(where: { $0.identifier == task.identifier })
-            immediatelyResumeTask(dequeuPoolTask())
+            if let _request = dequeuPoolTask() {
+                _ = requestAd(_request.task.ad, _request.adDidLoad, complete: _request.complete)
+            }
         }
     }
 }
