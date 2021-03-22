@@ -8,7 +8,7 @@
 import Foundation
 
 public protocol TaskFactoryCompatible {
-    func requestAd(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible
+    func requestAd(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, NSError>) -> Void)?) -> TaskCompatible
 }
 
 public final class NoneTask: TaskCompatible {
@@ -31,7 +31,7 @@ public final class NoneTask: TaskCompatible {
 }
 
 struct NoneTaskFactory: TaskFactoryCompatible {
-    func requestAd(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible {
+    func requestAd(_ ad: ADCompatble, _ adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, NSError>) -> Void)?) -> TaskCompatible {
         return NoneTask()
     }
 }

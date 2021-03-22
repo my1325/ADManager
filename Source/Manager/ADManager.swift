@@ -44,7 +44,7 @@ public final class ADManager {
     
     private var factoryList: [TaskFactoryCategory: TaskFactoryCompatible] = [NoneAd.noneTaskFactory: NoneTaskFactory()]
     
-    public func request(_ ad: ADCompatble, adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, Error>) -> Void)?) -> TaskCompatible {
+    public func request(_ ad: ADCompatble, adDidLoad: ((Any?) -> Void)?, complete: ((Result<Any?, NSError>) -> Void)?) -> TaskCompatible {
         if let _factory = taskFactoryForCategory(ad.taskFactoryCategory) {
             return _factory.requestAd(ad, adDidLoad, complete: complete)
         } else {
