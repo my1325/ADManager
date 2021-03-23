@@ -37,10 +37,14 @@ open class TaskFactory: TaskFactoryCompatible {
     public func requestAd(_ ad: ADCompatble, _ adDidLoad: ADDidLoad?, complete: ADComplete?) -> TaskCompatible {
         let task = prepareFor(ad)
         let request = ADRequest(ad: ad, adDidLoad: adDidLoad, adComplete: complete, task: task)
-        if taskingQueue[ad.category] != nil {
+        let taskingTask = taskingQueue[ad.category]
+        if taskingTask != nil, !taskingTask!.task.isCanceled {
             var _cacheQueue = cacheQueue[ad.category] ?? []
             _cacheQueue.append(request)
             cacheQueue[ad.category] = _cacheQueue
+        } else if taskingTask?.task.isCanceled == true {
+            cacheQueue.removeValue(forKey: ad.category)
+            resumeRequest(request, with: task)
         } else {
             resumeRequest(request, with: task)
         }
@@ -53,11 +57,19 @@ open class TaskFactory: TaskFactoryCompatible {
     
     public func dequeueRequestForAdCategory(_ category: ADCategory) -> ADRequest? {
         var _cacheQueue = cacheQueue[category] ?? []
-        if _cacheQueue.count > 0 {
+        if !_cacheQueue.isEmpty {
             let _reqeust = _cacheQueue.removeFirst()
             cacheQueue[category] = _cacheQueue
             return _reqeust
         } else {
+            for (_category, _cacheQueue) in cacheQueue {
+                if !_cacheQueue.isEmpty {
+                    var __cacheQueue = _cacheQueue
+                    let _reqeust = __cacheQueue.removeFirst()
+                    cacheQueue[_category] = __cacheQueue
+                    return _reqeust
+                }
+            }
             return nil
         }
     }
@@ -77,7 +89,7 @@ open class TaskFactory: TaskFactoryCompatible {
 extension TaskFactory: TaskReumeResultDelegate {
     public func task(_ task: TaskCompatible, didCompleteWithData data: Any?) {
         let request = taskingQueue.removeValue(forKey: task.ad.category)
-        if let _request = request {
+        if let _request = request, !task.isCanceled {
             _request.adComplete?(.success(data))
         }
         
@@ -85,10 +97,10 @@ extension TaskFactory: TaskReumeResultDelegate {
     }
     
     public func task(_ task: TaskCompatible, didCompleteWithError error: Error) {
-        guard !task.retry() else { return }
+        if !task.isCanceled, task.retry() { return }
         
         let request = taskingQueue.removeValue(forKey: task.ad.category)
-        if let _request = request {
+        if let _request = request, !task.isCanceled {
             _request.adComplete?(.failure(error as NSError))
         }
         
@@ -96,6 +108,8 @@ extension TaskFactory: TaskReumeResultDelegate {
     }
     
     public func task(_ task: TaskCompatible, adDidLoad data: Any?) {
+        if task.isCanceled { taskingQueue.removeValue(forKey: task.ad.category) }
+        
         if let _request = taskingQueue[task.ad.category] {
             _request.adDidLoad?(data)
         } else {
