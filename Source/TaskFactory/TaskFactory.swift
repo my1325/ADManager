@@ -80,7 +80,7 @@ open class TaskFactory: TaskFactoryCompatible {
     }
     
     private func requestNext(_ category: ADCategory) {
-        if let _newRequest = dequeueRequestForAdCategory(category) {
+        if let _newRequest = dequeueRequestForAdCategory(category), !_newRequest.task.isCanceled {
             resumeRequest(_newRequest, with: _newRequest.task)
         }
     }
