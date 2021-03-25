@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
 
- s.name             = "ADManager"
+ s.name             = "GeADManager"
  s.version           = "0.0.1"
  s.summary         = "ADManager for Ads Factory"
  s.homepage        = "https://github.com/my1325/GeSwift.git"
